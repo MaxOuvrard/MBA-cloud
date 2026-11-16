@@ -76,6 +76,7 @@ TP1bis/
 ├── infra/
 │   ├── config.sh                    -> noms des ressources, région, endpoint local
 │   ├── deploy.sh                    -> création des ressources dans LocalEmu
+│   ├── check.sh                     -> liste des ressources créées
 │   └── destroy.sh                   -> suppression des ressources
 ├── tests/
 │   ├── payloads/                    -> exemples de requêtes valides et invalides
@@ -150,4 +151,61 @@ Pour arrêter l'émulateur à la fin :
 
 ```bash
 localemu stop
+```
+
+## Créer les ressources dans LocalEmu
+
+LocalEmu ne garde pas les ressources après un arrêt. J'ai donc écrit des scripts pour tout recréer en une commande. Ils sont dans `infra/` et se lancent depuis le dossier `TP1bis/`, dans Ubuntu :
+
+```bash
+cd /mnt/d/.../MBA-cloud/TP1bis
+bash infra/deploy.sh      # crée (ou recrée) toutes les ressources
+bash infra/check.sh       # liste les ressources présentes dans l'émulateur
+bash infra/destroy.sh     # supprime tout
+```
+
+`deploy.sh` commence par tout supprimer, puis recrée les ressources dans cet ordre :
+
+1. **SQS** : la file `requests-queue` et une *dead-letter queue* `requests-queue-dlq`. Un message dont le traitement échoue 3 fois est déplacé dans la DLQ, au lieu de boucler à l'infini.
+2. **DynamoDB** : la table `requests`, avec la clé de partition `id` (type string), en mode à la demande.
+3. **IAM** : un rôle `tp1bis-lambda-role`, qui n'a que les droits nécessaires (envoyer et lire dans la file, écrire dans la table, écrire les logs).
+4. **Lambdas** : le code de chaque fonction est zippé dans `build/` (ignoré par git), puis les fonctions `http-to-sqs` et `sqs-to-dynamodb` sont créées en Python 3.12.
+5. **Event source mapping** : il relie la file SQS à la Lambda B. C'est ce qui déclenche automatiquement la Lambda B à l'arrivée d'un message.
+6. **API Gateway** : une API REST `tp1bis-api`, avec la route `POST /requests` en intégration proxy vers la Lambda A, déployée sur le stage `local`.
+
+À la fin, le script affiche l'URL locale de l'API :
+
+```
+URL de l'API : http://localhost:4566/restapis/<id>/local/_user_request_/requests
+```
+
+L'id de l'API change à chaque déploiement. `bash infra/check.sh` permet de retrouver l'URL.
+
+### Comment prouver qu'on cible bien l'émulateur et pas AWS ?
+
+C'est la question posée à l'étape 2 du TP. Trois éléments le montrent :
+
+1. **L'endpoint** : toutes les commandes passent par la fonction `awsl` de `infra/config.sh`, qui ajoute `--endpoint-url=http://localhost:4566`. Les requêtes partent donc vers ma machine et pas vers `*.amazonaws.com`. Avant de faire quoi que ce soit, les scripts vérifient que l'endpoint est bien `localhost`.
+2. **Le compte** : `sts get-caller-identity` renvoie le compte `000000000000`, qui est le compte simulé de LocalEmu. Les scripts s'arrêtent si ce n'est pas ce compte.
+3. **Les ressources elles-mêmes** : les URL des files sont du type `http://sqs.us-east-1.localhost:4566/000000000000/...` et tous les ARN contiennent `000000000000`.
+
+De plus, les identifiants utilisés sont ceux d'exemple publiés par AWS (`AKIAIOSFODNN7EXAMPLE`). Même avec une erreur de configuration, ils ne permettraient pas d'accéder à un vrai compte.
+
+Exemple de sortie de `bash infra/check.sh` :
+
+```
+OK : cible = LocalEmu (http://localhost:4566), compte simulé 000000000000
+
+--- Files SQS ---
+|  http://sqs.us-east-1.localhost:4566/000000000000/requests-queue-dlq  |
+|  http://sqs.us-east-1.localhost:4566/000000000000/requests-queue      |
+--- Tables DynamoDB ---
+|  requests  |
+--- Lambdas ---
+|  http-to-sqs    |  python3.12 |  arn:aws:lambda:us-east-1:000000000000:function:http-to-sqs       |
+|  sqs-to-dynamodb|  python3.12 |  arn:aws:lambda:us-east-1:000000000000:function:sqs-to-dynamodb   |
+--- Déclencheurs (event source mappings) ---
+|  ...function:sqs-to-dynamodb |  arn:aws:sqs:us-east-1:000000000000:requests-queue  |  Enabled |
+--- API Gateway ---
+|  tp1bis-api |  z8g04i61fq  |
 ```
