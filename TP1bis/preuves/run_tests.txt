@@ -1,0 +1,50 @@
+Exécution des tests : 2026-11-16T14:32:42Z
+OK : cible = LocalEmu (http://localhost:4566), compte simulé 000000000000
+API : http://localhost:4566/restapis/kp22ubjpcd/local/_user_request_/requests
+Items dans la table avant les tests : 0
+
+=== Test 1 : appel valide + réponse HTTP avant la fin du traitement asynchrone ===
+  Réponse (1893 ms) : HTTP 202 {"status": "accepted", "id": "bce99383-eaf6-4d49-9c17-35c0297dc580"}
+  [OK]    HTTP 202 avec un id
+  Item bce99383-eaf6-4d49-9c17-35c0297dc580 dans DynamoDB juste après la réponse : absent
+  [OK]    la réponse HTTP arrive avant l'écriture en base (traitement asynchrone)
+  [OK]    item écrit dans DynamoDB par la Lambda B 10 s après la réponse HTTP
+
+=== Test 2 : plusieurs appels successifs avec des données distinctes ===
+  {"client":"Bob","montant":19.99} -> HTTP 202 id=8c88ba22-24c9-4773-9b54-2261175b014b
+  {"client":"Chloé","montant":7} -> HTTP 202 id=4507f4cc-e645-4e2d-84b2-aaab37cccf35
+  {"client":"David","montant":1500} -> HTTP 202 id=f1eff706-4752-418d-9fde-8f992aad4a9d
+  {"client":"Emma","montant":0.5} -> HTTP 202 id=71fad99d-8df8-4edd-b1f9-441e841d9288
+  [OK]    item Bob (8c88ba22-24c9-4773-9b54-2261175b014b) présent avec les bonnes données
+  [OK]    item Emma (71fad99d-8df8-4edd-b1f9-441e841d9288) présent avec les bonnes données
+  [OK]    item Chloé (4507f4cc-e645-4e2d-84b2-aaab37cccf35) présent avec les bonnes données
+  [OK]    item David (f1eff706-4752-418d-9fde-8f992aad4a9d) présent avec les bonnes données
+
+=== Test 3 : appels avec des données invalides ===
+  {"client":"Bob","montant":"abc"} -> HTTP 400 {"error": "données invalides", "details": ["'montant' doit être un nombre strictement positif"]}
+  [OK]    requête invalide refusée (400)
+  {"montant":10} -> HTTP 400 {"error": "données invalides", "details": ["'client' doit être un texte non vide"]}
+  [OK]    requête invalide refusée (400)
+  {"client":"","montant":10} -> HTTP 400 {"error": "données invalides", "details": ["'client' doit être un texte non vide"]}
+  [OK]    requête invalide refusée (400)
+  {"client":"Zoé","montant":-5} -> HTTP 400 {"error": "données invalides", "details": ["'montant' doit être un nombre strictement positif"]}
+  [OK]    requête invalide refusée (400)
+  {"client":"Zoé","montant":true} -> HTTP 400 {"error": "données invalides", "details": ["'montant' doit être un nombre strictement positif"]}
+  [OK]    requête invalide refusée (400)
+  {pas du json -> HTTP 400 {"error": "corps JSON invalide"}
+  [OK]    requête invalide refusée (400)
+  Items avant : 5, 10 s après : 5
+  [OK]    aucune donnée invalide n'est arrivée dans DynamoDB
+
+=== Test 4 : message livré deux fois (idempotence de la Lambda B) ===
+  Même message (id=doublon-1794839602) envoyé 2 fois dans la file
+  Items avant : 5, après : 6
+  [OK]    un seul item créé pour le message en double
+
+=== Test 5 : message illisible dans la file -> 3 tentatives puis DLQ ===
+  Message {"pas":"le bon format"} déposé dans la file (attente jusqu'à 150 s)
+  [OK]    message déplacé dans la DLQ après 115 s
+  Contenu de la DLQ : {"pas":"le bon format"}
+
+=== Bilan : 16 OK, 0 échec(s) ===
+Preuves enregistrées dans preuves/ : run_tests.txt, ressources.txt, dynamodb_scan.txt, logs_http-to-sqs.txt, logs_sqs-to-dynamodb.txt

@@ -1,0 +1,13 @@
+[INFO]	2026-11-16T14:32:47.750Z		Found credentials in environment variables.
+[INFO]	2026-11-16T14:32:47.881Z		Found endpoint for sqs via: environment_global.
+[INFO]	2026-11-16T14:32:47.956Z	2b2f5865-2348-4ef4-a24c-e9204e86a949	Message bce99383-eaf6-4d49-9c17-35c0297dc580 publié dans requests-queue (SQS MessageId=a0385b12-fe9d-497e-be0c-93c12b5fb172)
+[INFO]	2026-11-16T14:32:59.480Z	dd9d4c7c-eef5-47b1-8415-fc98b17f5d78	Message 8c88ba22-24c9-4773-9b54-2261175b014b publié dans requests-queue (SQS MessageId=29c97f6b-5a64-4497-b7d8-607bc4192c58)
+[INFO]	2026-11-16T14:32:59.722Z	dd3db107-41d5-4c30-b8e8-4be9114174e2	Message 4507f4cc-e645-4e2d-84b2-aaab37cccf35 publié dans requests-queue (SQS MessageId=f6f4ef7c-0667-4584-bcfa-a599d767b950)
+[INFO]	2026-11-16T14:33:00.095Z	7f2b251d-1d0c-46d6-9689-7d837da6a39b	Message f1eff706-4752-418d-9fde-8f992aad4a9d publié dans requests-queue (SQS MessageId=6223ee1d-700f-44d9-b673-bfedca334bd7)
+[INFO]	2026-11-16T14:33:00.279Z	588d47d1-f9ba-4034-a2e6-855523d580dd	Message 71fad99d-8df8-4edd-b1f9-441e841d9288 publié dans requests-queue (SQS MessageId=ca30b052-bc21-4ec6-b131-9e0e90a1599d)
+[WARNING]	2026-11-16T14:33:10.036Z	455a7206-3fd2-468b-97c4-af950881b3ee	Requête refusée : ["'montant' doit être un nombre strictement positif"]
+[WARNING]	2026-11-16T14:33:10.098Z	665a695b-a2be-452d-a3e9-66ce581c495b	Requête refusée : ["'client' doit être un texte non vide"]
+[WARNING]	2026-11-16T14:33:10.162Z	8dfd06c3-1510-4296-9b17-272b0e1170a0	Requête refusée : ["'client' doit être un texte non vide"]
+[WARNING]	2026-11-16T14:33:10.219Z	31206073-0c8a-4dc1-87de-eaa91c0bd6c2	Requête refusée : ["'montant' doit être un nombre strictement positif"]
+[WARNING]	2026-11-16T14:33:10.274Z	1148739c-7707-41ef-9885-86cefa0bfc3d	Requête refusée : ["'montant' doit être un nombre strictement positif"]
+[WARNING]	2026-11-16T14:33:10.329Z	7f825005-a2a3-475f-9240-4a5bf9e03c28	Requête refusée : corps JSON invalide

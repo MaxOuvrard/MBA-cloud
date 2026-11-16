@@ -213,6 +213,85 @@ OK : cible = LocalEmu (http://localhost:4566), compte simulé 000000000000
 |  tp1bis-api |  z8g04i61fq  |
 ```
 
+## Tester le parcours HTTP → SQS → DynamoDB
+
+### Lancement complet (résumé)
+
+Dans Ubuntu, depuis le dossier `TP1bis/` :
+
+```bash
+# terminal 1 : l'émulateur (à laisser ouvert)
+bash infra/start-localemu.sh
+
+# terminal 2 : les ressources puis les tests
+source ~/localemu-env/bin/activate
+bash infra/deploy.sh
+bash tests/run_tests.sh
+```
+
+### Test manuel avec curl
+
+```bash
+source infra/config.sh
+URL=$(api_url)
+
+curl -X POST "$URL" -H "Content-Type: application/json" -d @tests/payloads/valide.json
+# {"status": "accepted", "id": "..."}   (HTTP 202)
+
+curl -X POST "$URL" -H "Content-Type: application/json" -d @tests/payloads/invalide_montant.json
+# {"error": "données invalides", "details": [...]}   (HTTP 400)
+
+# quelques secondes plus tard, l'item est dans la table :
+awsl dynamodb scan --table-name requests --output table
+```
+
+### Tests automatiques (`tests/run_tests.sh`)
+
+Le script enchaîne tous les scénarios sans aucune intervention entre les étapes : il envoie les requêtes HTTP, puis observe DynamoDB et SQS.
+
+| Test | Ce qui est vérifié |
+|---|---|
+| 1. Appel valide | réponse `202` avec un `id` ; l'item est **absent** de DynamoDB juste après la réponse, puis apparaît quelques secondes plus tard |
+| 2. Plusieurs appels successifs | 4 appels avec des données différentes (dont des décimaux) : chaque item est présent avec les bonnes valeurs |
+| 3. Données invalides | 6 requêtes refusées en `400` (montant texte, négatif ou booléen, client vide ou manquant, JSON cassé) ; le nombre d'items dans la table ne change pas |
+| 4. Message en double | le même message déposé 2 fois dans la file ne crée qu'**un seul** item |
+| 5. Message illisible | après 3 tentatives, le message est déplacé dans la **DLQ** |
+
+Résultat obtenu : **16 OK, 0 échec**.
+
+```
+=== Test 1 : appel valide + réponse HTTP avant la fin du traitement asynchrone ===
+  Réponse (1893 ms) : HTTP 202 {"status": "accepted", "id": "bce99383-..."}
+  [OK]    HTTP 202 avec un id
+  Item bce99383-... dans DynamoDB juste après la réponse : absent
+  [OK]    la réponse HTTP arrive avant l'écriture en base (traitement asynchrone)
+  [OK]    item écrit dans DynamoDB par la Lambda B 10 s après la réponse HTTP
+...
+=== Test 4 : message livré deux fois (idempotence de la Lambda B) ===
+  Items avant : 5, après : 6
+  [OK]    un seul item créé pour le message en double
+
+=== Test 5 : message illisible dans la file -> 3 tentatives puis DLQ ===
+  [OK]    message déplacé dans la DLQ après 115 s
+  Contenu de la DLQ : {"pas":"le bon format"}
+
+=== Bilan : 16 OK, 0 échec(s) ===
+```
+
+### Preuves d'exécution
+
+Le script enregistre tout dans le dossier [`preuves/`](preuves/). Les fichiers versionnés correspondent à ma dernière exécution :
+
+| Fichier | Contenu |
+|---|---|
+| [`run_tests.txt`](preuves/run_tests.txt) | sortie complète des tests |
+| [`ressources.txt`](preuves/ressources.txt) | ressources présentes dans LocalEmu (files, table, Lambdas, déclencheur, API), avec les URL `localhost:4566` et les ARN `000000000000` |
+| [`dynamodb_scan.txt`](preuves/dynamodb_scan.txt) | contenu de la table à la fin des tests |
+| [`logs_http-to-sqs.txt`](preuves/logs_http-to-sqs.txt) | logs de la Lambda A (messages publiés, requêtes refusées) |
+| [`logs_sqs-to-dynamodb.txt`](preuves/logs_sqs-to-dynamodb.txt) | logs de la Lambda B (lots reçus, items écrits, doublon ignoré, 3 échecs du message illisible) |
+
+On peut aussi suivre l'exécution en direct dans le terminal de LocalEmu, ou sur le tableau de bord `http://localhost:4566/_localemu/dashboard`.
+
 ## Lambda A – `http-to-sqs`
 
 Fichier : `lambdas/http_to_sqs/handler.py`
@@ -329,6 +408,60 @@ Logs de la Lambda B (extraits) :
 ```
 
 On voit aussi que la réponse HTTP (`202`, à 14:26:11) arrive **avant** l'écriture dans DynamoDB (`processedAt` à 14:26:15). Le traitement est bien asynchrone.
+
+## Questions d'analyse
+
+### Pourquoi ne pas écrire directement dans DynamoDB depuis la Lambda HTTP ?
+
+- **Découplage** : la Lambda A n'a qu'un rôle, recevoir et valider. Si on change le stockage (autre table, autre base) ou qu'on ajoute un traitement, on ne touche qu'à la Lambda B, et le point d'entrée HTTP ne change pas.
+- **Résistance aux pannes** : si DynamoDB est lent ou indisponible, la Lambda A continue de répondre et les messages attendent dans la file. Avec une écriture directe, c'est le client HTTP qui recevrait l'erreur et la donnée serait perdue s'il ne réessaie pas.
+- **Temps de réponse** : le client n'attend pas la fin du traitement. Dans mes tests, la réponse `202` arrive avant l'écriture en base.
+- **Absorption des pics** : en cas de rafale de requêtes, la file sert de tampon et la Lambda B traite à son rythme, par lots, sans surcharger la base.
+
+### Quel est l'intérêt de SQS entre les deux fonctions ?
+
+SQS sert d'intermédiaire entre le producteur (Lambda A) et le consommateur (Lambda B). Les deux fonctions ne se connaissent pas : la Lambda A connaît seulement le nom de la file, et la Lambda B est déclenchée par la file. En plus du découplage, SQS apporte :
+
+- la **persistance** des messages tant qu'ils ne sont pas traités (jusqu'à 4 jours par défaut) ;
+- les **nouvelles tentatives automatiques** : un message en échec redevient visible après le *visibility timeout* ;
+- la **DLQ** : après N échecs, le message est mis de côté au lieu de bloquer la file ou de boucler indéfiniment ;
+- le **traitement par lots** et la mise à l'échelle automatique du nombre de Lambdas B selon la taille de la file.
+
+### Quels problèmes si un message est traité plusieurs fois ?
+
+Avec une file SQS standard, la livraison est « au moins une fois ». Un message peut être traité deux fois, par exemple si la Lambda B a écrit en base mais a planté avant que SQS ne supprime le message, ou si le traitement dépasse le *visibility timeout*. Sans précaution, cela peut provoquer :
+
+- des **doublons** en base (deux commandes au lieu d'une, par exemple) ;
+- des **calculs faux** si le traitement additionne des montants ou décrémente un stock ;
+- l'**écrasement** d'une donnée plus récente par une ancienne version du message ;
+- des **effets de bord répétés** : deux e-mails envoyés, deux paiements.
+
+Ma solution est de rendre la Lambda B **idempotente**. L'`id` est généré une seule fois par la Lambda A et sert de clé dans DynamoDB, et l'écriture est conditionnelle (`attribute_not_exists(id)`). Un deuxième traitement du même message n'a donc aucun effet, ce que vérifie le test 4. Une autre option aurait été une file **FIFO** avec déduplication, mais elle est limitée en débit et ne garantit la déduplication que sur 5 minutes.
+
+### Différences avec Azure Functions, Queue Storage et Table Storage (TP1)
+
+| Aspect | Azure (TP1) | AWS (TP1bis) |
+|---|---|---|
+| Point d'entrée HTTP | intégré à la fonction (HTTP trigger) | service séparé : **API Gateway**, qu'il faut créer et relier à la Lambda |
+| Liaison aux services | **bindings** déclarés dans le code (`output.storageQueue`, `output.table`) : pas de SDK | **SDK** (`boto3`) dans le code pour SQS et DynamoDB ; le déclenchement est un *event source mapping* configuré hors du code |
+| Création des ressources | la queue et la table sont créées automatiquement au premier usage | tout doit être créé explicitement (`deploy.sh`) : file, table, rôle IAM, API, mapping |
+| Permissions | aucune en local (chaîne de connexion Azurite) | **rôle IAM** obligatoire pour chaque Lambda |
+| File de messages | Queue Storage : simple, la poison queue `-poison` est automatique après 5 échecs | SQS : plus d'options (DLQ configurable, FIFO, lots, `batchItemFailures`) |
+| Stockage | Table Storage : clé `PartitionKey` + `RowKey` imposée, schéma libre | DynamoDB : clé choisie (ici `id`), écritures conditionnelles, types stricts (pas de `float`) |
+| Exécution locale | runtime `func` + Azurite, direct sur la machine | LocalEmu + **Docker** (chaque Lambda tourne dans un conteneur) |
+| Mise en place locale | rapide : quelques minutes | plus longue : WSL2, Docker, problèmes réseau entre WSL et Docker |
+
+En résumé, Azure Functions est plus « clé en main » : les bindings cachent beaucoup de configuration. AWS demande plus de mise en place (IAM, API Gateway, mapping), mais chaque brique est plus explicite et plus configurable. Les concepts restent les mêmes : un déclencheur HTTP, une file pour découpler et une base NoSQL clé/valeur.
+
+## Limites identifiées
+
+- **Pas de persistance** : LocalEmu perd toutes les ressources à l'arrêt. Il faut relancer `bash infra/deploy.sh` après chaque démarrage, et l'id de l'API change à chaque fois.
+- **Spécifique à Windows** : `start-localemu.sh` contient des réglages réseau propres à WSL2 + Docker Desktop. Sous Linux natif, `localemu start` suffit et ces réglages sont sans doute inutiles. Je n'ai pas pu le tester.
+- **Émulateur ≠ AWS** : LocalEmu reproduit l'API d'AWS mais pas tout son comportement. Par exemple, le bug du déclencheur bloqué en `Deleting` n'existe pas sur AWS, et l'IAM n'est pas vérifié aussi strictement. Le projet n'a pas été testé sur un vrai compte AWS, ce que le TP interdit de toute façon.
+- **Premier appel lent** : au premier appel, LocalEmu démarre un conteneur Docker pour la Lambda (*cold start*). La réponse prend environ 2 secondes et l'écriture en base jusqu'à 10 secondes. Les appels suivants sont beaucoup plus rapides.
+- **API sans authentification** : la route `POST /requests` est publique (`authorization-type NONE`). En production, il faudrait une clé d'API, Cognito ou IAM.
+- **Validation minimale** : seuls `client` et `montant` sont vérifiés. Les champs en plus sont ignorés, et il n'y a pas de limite de taille ou de format pour le nom du client.
+- **Déploiement en script bash** plutôt qu'en IaC (Terraform, SAM, CloudFormation). C'est simple et lisible pour le TP, mais moins adapté à un vrai projet : pas de gestion des différences entre deux versions, et on recrée tout à chaque fois.
 
 ## Difficultés rencontrées
 

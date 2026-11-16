@@ -29,6 +29,10 @@ echo "Suppression des Lambdas..."
 awsl lambda delete-function --function-name "$LAMBDA_HTTP" 2>/dev/null
 awsl lambda delete-function --function-name "$LAMBDA_WORKER" 2>/dev/null
 
+echo "Suppression des journaux CloudWatch des Lambdas..."
+awsl logs delete-log-group --log-group-name "/aws/lambda/$LAMBDA_HTTP" 2>/dev/null
+awsl logs delete-log-group --log-group-name "/aws/lambda/$LAMBDA_WORKER" 2>/dev/null
+
 echo "Suppression du rôle IAM..."
 awsl iam delete-role-policy --role-name "$ROLE_NAME" --policy-name tp1bis-permissions 2>/dev/null
 awsl iam delete-role --role-name "$ROLE_NAME" 2>/dev/null

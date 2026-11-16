@@ -1,0 +1,21 @@
+[INFO]	2026-11-16T14:32:57.904Z		Found credentials in environment variables.
+[INFO]	2026-11-16T14:32:58.128Z		Found endpoint for dynamodb via: environment_global.
+[INFO]	2026-11-16T14:32:58.176Z	28c3e89e-ee64-46d8-8457-9f90b1689762	Lot reçu de SQS : 1 message(s)
+[INFO]	2026-11-16T14:32:58.252Z	28c3e89e-ee64-46d8-8457-9f90b1689762	Item bce99383-eaf6-4d49-9c17-35c0297dc580 écrit dans requests (client=Alice, montant=42)
+[INFO]	2026-11-16T14:33:00.333Z	d5ff2d01-2fd3-4151-82ee-37a096a7dfea	Lot reçu de SQS : 4 message(s)
+[INFO]	2026-11-16T14:33:00.345Z	d5ff2d01-2fd3-4151-82ee-37a096a7dfea	Item 8c88ba22-24c9-4773-9b54-2261175b014b écrit dans requests (client=Bob, montant=19.99)
+[INFO]	2026-11-16T14:33:00.364Z	d5ff2d01-2fd3-4151-82ee-37a096a7dfea	Item 4507f4cc-e645-4e2d-84b2-aaab37cccf35 écrit dans requests (client=Chloé, montant=7)
+[INFO]	2026-11-16T14:33:00.376Z	d5ff2d01-2fd3-4151-82ee-37a096a7dfea	Item f1eff706-4752-418d-9fde-8f992aad4a9d écrit dans requests (client=David, montant=1500)
+[INFO]	2026-11-16T14:33:00.389Z	d5ff2d01-2fd3-4151-82ee-37a096a7dfea	Item 71fad99d-8df8-4edd-b1f9-441e841d9288 écrit dans requests (client=Emma, montant=0.5)
+[INFO]	2026-11-16T14:33:27.071Z	d953705a-b5e9-4b8a-993f-fbb71ff83cdb	Lot reçu de SQS : 2 message(s)
+[INFO]	2026-11-16T14:33:27.088Z	d953705a-b5e9-4b8a-993f-fbb71ff83cdb	Item doublon-1794839602 écrit dans requests (client=Doublon, montant=1)
+[WARNING]	2026-11-16T14:33:27.145Z	d953705a-b5e9-4b8a-993f-fbb71ff83cdb	Item doublon-1794839602 déjà présent : message en double ignoré
+[INFO]	2026-11-16T14:33:49.969Z	403fca0a-157a-42ab-b981-18ed2954b846	Lot reçu de SQS : 1 message(s)
+[ERROR]	2026-11-16T14:33:49.969Z	403fca0a-157a-42ab-b981-18ed2954b846	Message SQS 0012946f-6206-4575-95c0-a5d62523be14 invalide : champ 'id' manquant | body={"pas": "le bon format"}
+[WARNING]	2026-11-16T14:33:49.969Z	403fca0a-157a-42ab-b981-18ed2954b846	1 message(s) en échec renvoyé(s) dans la file
+[INFO]	2026-11-16T14:34:28.775Z	5918a3da-b264-4844-a1ff-c1a5ce8f3917	Lot reçu de SQS : 1 message(s)
+[ERROR]	2026-11-16T14:34:28.776Z	5918a3da-b264-4844-a1ff-c1a5ce8f3917	Message SQS 0012946f-6206-4575-95c0-a5d62523be14 invalide : champ 'id' manquant | body={"pas": "le bon format"}
+[WARNING]	2026-11-16T14:34:28.776Z	5918a3da-b264-4844-a1ff-c1a5ce8f3917	1 message(s) en échec renvoyé(s) dans la file
+[INFO]	2026-11-16T14:34:59.730Z	3c6c9a0e-8e45-408c-88e3-ba3d7ad35901	Lot reçu de SQS : 1 message(s)
+[ERROR]	2026-11-16T14:34:59.730Z	3c6c9a0e-8e45-408c-88e3-ba3d7ad35901	Message SQS 0012946f-6206-4575-95c0-a5d62523be14 invalide : champ 'id' manquant | body={"pas": "le bon format"}
+[WARNING]	2026-11-16T14:34:59.730Z	3c6c9a0e-8e45-408c-88e3-ba3d7ad35901	1 message(s) en échec renvoyé(s) dans la file
