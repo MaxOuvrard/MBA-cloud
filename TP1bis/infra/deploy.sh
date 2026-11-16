@@ -105,6 +105,13 @@ echo "Lambda A : $LAMBDA_HTTP_ARN"
 echo "Lambda B : $(awsl lambda get-function --function-name "$LAMBDA_WORKER" --query Configuration.FunctionArn --output text)"
 
 echo "=== 6. Déclencheur SQS -> Lambda B (event source mapping) ==="
+# Bug LocalEmu : un mapping supprimé alors qu'il était désactivé reste bloqué en "Deleting".
+if [ -n "$(awsl lambda list-event-source-mappings --function-name "$LAMBDA_WORKER" \
+        --query "EventSourceMappings[?State=='Deleting'].UUID" --output text)" ]; then
+    echo "ERREUR : un ancien déclencheur est bloqué à l'état 'Deleting' dans LocalEmu." >&2
+    echo "Redémarrer LocalEmu (Ctrl+C puis 'bash infra/start-localemu.sh') et relancer ce script." >&2
+    exit 1
+fi
 # ReportBatchItemFailures : seuls les messages en erreur sont renvoyés dans la file.
 awsl lambda create-event-source-mapping \
     --function-name "$LAMBDA_WORKER" \

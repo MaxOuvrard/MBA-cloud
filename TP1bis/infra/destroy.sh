@@ -12,9 +12,17 @@ for id in $(awsl apigateway get-rest-apis --query "items[?name=='$API_NAME'].id"
 done
 
 echo "Suppression du déclencheur SQS..."
-for uuid in $(awsl lambda list-event-source-mappings --function-name "$LAMBDA_WORKER" \
-        --query "EventSourceMappings[].UUID" --output text 2>/dev/null); do
+list_mappings() {
+    awsl lambda list-event-source-mappings --function-name "$LAMBDA_WORKER" \
+        --query "EventSourceMappings[].UUID" --output text 2>/dev/null
+}
+for uuid in $(list_mappings); do
     awsl lambda delete-event-source-mapping --uuid "$uuid" > /dev/null
+done
+# La suppression est asynchrone : on attend qu'elle soit effective (30 s max)
+for _ in $(seq 1 30); do
+    [ -z "$(list_mappings)" ] && break
+    sleep 1
 done
 
 echo "Suppression des Lambdas..."
