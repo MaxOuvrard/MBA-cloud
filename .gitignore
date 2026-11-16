@@ -1,53 +1,53 @@
-bin/
-**/bin/
-!Modules/**
-obj
-csx
-.vs
-edge
-Publish
+# ===== Général =====
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vs/
 
-*.user
-*.suo
-*.cscfg
-*.Cache
-project.lock.json
-
-/packages
-/TestResults
-
-/tools/NuGet.exe
-/App_Data
-/secrets
-/data
-.secrets
-appsettings.json
-# local.settings.json est versionné volontairement (TP local, aucun secret : UseDevelopmentStorage=true)
-
-node_modules
-dist
-
-# Local python packages
-.python_packages/
-
-# Python Environments
+# Secrets / identifiants (ne jamais versionner)
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+.env.*
+!.env.example
+.secrets
+/secrets
+.aws/
+*.pem
 
-# Byte-compiled / optimized / DLL files
+# ===== Node.js =====
+node_modules/
+dist/
+npm-debug.log*
+
+# ===== Python =====
 __pycache__/
 *.py[cod]
 *$py.class
+.venv/
+venv/
+env/
+ENV/
+localemu-env/
+.python_packages/
+.pytest_cache/
 
-# Azurite artifacts
+# ===== .NET =====
+bin/
+obj/
+*.user
+*.suo
+
+# ===== Azure Functions / Azurite (TP1) =====
+# local.settings.json est versionné volontairement (TP local, aucun secret : UseDevelopmentStorage=true)
 .azurite/
-__blobstorage__
-__queuestorage__
-__tablestorage__
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
 __azurite_db*__.json
 AzuriteConfig
+
+# ===== AWS / LocalEmu (TP1bis) =====
+.aws-sam/
+.localemu/
+*.zip
+build/
